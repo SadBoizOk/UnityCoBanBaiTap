@@ -52,7 +52,8 @@ namespace XOCardBattle
         readonly int[] shieldStarted = { -1, -1 };
         public int MaxTurns { get; private set; }
         public bool Placed { get; private set; }
-        public bool UsedCard { get; private set; }
+        public int CardsPlayedThisTurn { get; private set; }
+        bool uTurnAvailable;
         public int LastPlaced { get; private set; } = -1;
         public Outcome Result { get; private set; }
         public string Message { get; private set; } = "";
@@ -89,7 +90,7 @@ namespace XOCardBattle
         public int ShieldLeft(int p) => Left(ShieldUntil[p], shieldStarted[p]);
         public int TotalCards => Deck.Count + Discard.Count + Hands[0].Count + Hands[1].Count + Stack.Count + Choice.Count;
         public bool HasPlacement => Enumerable.Range(0, Board.Length).Any(CanPlace);
-        public bool CanEnd => Result == Outcome.Playing && !Pending && !Choosing && (Placed || !HasPlacement);
+        public bool CanEnd => Result == Outcome.Playing && !Pending && !Choosing;
         static bool In(int i) => i >= 0 && i < Size * Size;
         bool Own(int i, int p) => In(i) && !IsDestroyed(i) && Board[i].Piece == p + 1;
         bool Mutable(int i) => In(i) && !IsDestroyed(i) && !IsImmortal(i);
@@ -115,7 +116,7 @@ namespace XOCardBattle
         {
             if (Result != Outcome.Playing || Pending || Choosing || Placed || !CanPlace(i)) return false;
             Board[i].Piece = Player + 1;
-            Placed = true; LastPlaced = i;
+            Placed = true; LastPlaced = i; uTurnAvailable = true;
             Message = Side(Player) + " placed.";
             CheckWin(); return true;
         }
@@ -139,7 +140,7 @@ namespace XOCardBattle
             CheckWin();
             if (Result != Outcome.Playing) return;
             if (Turn >= MaxTurns) { Result = Outcome.Draw; Message = "Prototype turn limit reached."; return; }
-            Player = 1 - Player; Placed = false; UsedCard = false; LastPlaced = -1;
+            Player = 1 - Player; Placed = false; CardsPlayedThisTurn = 0; LastPlaced = -1; uTurnAvailable = false;
             Draw(Player);
             Message = Side(Player) + " turn.";
         }
@@ -182,10 +183,10 @@ namespace XOCardBattle
         static bool Personal(Card c) => c == Card.Peek || c == Card.Steal || c == Card.Discard || c == Card.Silence;
         public bool CanStart(Card c)
         {
-            if (Result != Outcome.Playing || Pending || Choosing || Locked || UsedCard || !Hands[Player].Contains(c)) return false;
+            if (Result != Outcome.Playing || Pending || Choosing || Locked || !Hands[Player].Contains(c)) return false;
             if (c == Card.Nope || c == Card.Reflect) return false;
             if (Silence[Player] > 0 && c != Card.Cleanse) return false;
-            if (c == Card.UTurn && (!Placed || !Own(LastPlaced,Player) || !Mutable(LastPlaced))) return false;
+            if (c == Card.UTurn && (!uTurnAvailable || !Placed || !Own(LastPlaced,Player) || !Mutable(LastPlaced))) return false;
             return true;
         }
 
@@ -223,7 +224,9 @@ namespace XOCardBattle
         {
             if (!ValidTarget(c,a,b)) { Message = "Invalid card or target."; return false; }
             Hands[Player].Remove(c);
-            UsedCard = true;
+            CardsPlayedThisTurn++;
+            // U-TURN must be the first active card after placing a mark; one attempt per turn.
+            uTurnAvailable = false;
             Stack.Add(new Play(c,Player,a,b)); Priority = 1-Player;
             Message = Side(Player) + " plays " + c + ".";
             // If no possible reaction, resolve without an unnecessary prompt.
