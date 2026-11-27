@@ -20,6 +20,7 @@ namespace XOCardBattle
         public bool Destroyed;
         public int FreezeUntil;
         public int ImmortalUntil;
+        public int FreezeStarted = -1, ImmortalStarted = -1;
     }
 
     public sealed class Play
@@ -47,6 +48,9 @@ namespace XOCardBattle
         public int Player { get; private set; }
         public int Priority { get; private set; }
         public int LockUntil { get; private set; }
+        int lockStarted = -1;
+        readonly int[] shieldStarted = { -1, -1 };
+        public int MaxTurns { get; private set; }
         public bool Placed { get; private set; }
         public bool UsedCard { get; private set; }
         public int LastPlaced { get; private set; } = -1;
@@ -58,10 +62,11 @@ namespace XOCardBattle
         readonly Random rng;
         readonly int initialCardCount;
 
-        public Match(int seed = 0, int copies = 3, int startingHand = 5)
+        public Match(int seed = 0, int copies = 3, int startingHand = 5, int maxTurns = 250)
         {
             if (copies < 1 || startingHand < 0) throw new ArgumentOutOfRangeException();
             rng = new Random(seed);
+            MaxTurns = Math.Max(1,maxTurns);
             for (int i = 0; i < Board.Length; i++) Board[i] = new Cell();
             foreach (Card c in Enum.GetValues(typeof(Card)))
                 for (int i = 0; i < copies; i++) Deck.Add(c);
@@ -77,10 +82,11 @@ namespace XOCardBattle
         public bool IsDestroyed(int i) => !Locked && Board[i].Destroyed;
         public bool HasShield(int p) => !Locked && ShieldUntil[p] > Turn;
         public bool CanPlace(int i) => In(i) && Board[i].Piece == 0 && !IsDestroyed(i) && !IsFrozen(i);
-        public int FreezeLeft(int i) => Math.Max(0, Board[i].FreezeUntil - Turn);
-        public int ImmortalLeft(int i) => Math.Max(0, Board[i].ImmortalUntil - Turn);
-        public int LockLeft => Math.Max(0, LockUntil - Turn);
-        public int ShieldLeft(int p) => Math.Max(0, ShieldUntil[p] - Turn);
+        int Left(int until, int started) => Math.Max(0, until - Turn - (started == Turn ? 1 : 0));
+        public int FreezeLeft(int i) => Left(Board[i].FreezeUntil, Board[i].FreezeStarted);
+        public int ImmortalLeft(int i) => Left(Board[i].ImmortalUntil, Board[i].ImmortalStarted);
+        public int LockLeft => Left(LockUntil, lockStarted);
+        public int ShieldLeft(int p) => Left(ShieldUntil[p], shieldStarted[p]);
         public int TotalCards => Deck.Count + Discard.Count + Hands[0].Count + Hands[1].Count + Stack.Count + Choice.Count;
         public bool HasPlacement => Enumerable.Range(0, Board.Length).Any(CanPlace);
         public bool CanEnd => Result == Outcome.Playing && !Pending && !Choosing && (Placed || !HasPlacement);
@@ -132,6 +138,7 @@ namespace XOCardBattle
                 foreach (Cell c in Board) if (c.Destroyed) c.Piece = 0;
             CheckWin();
             if (Result != Outcome.Playing) return;
+            if (Turn >= MaxTurns) { Result = Outcome.Draw; Message = "Prototype turn limit reached."; return; }
             Player = 1 - Player; Placed = false; UsedCard = false; LastPlaced = -1;
             Draw(Player);
             Message = Side(Player) + " turn.";
@@ -296,7 +303,8 @@ namespace XOCardBattle
             switch(p.Card)
             {
                 case Card.Swap: int t=Board[a].Piece; Board[a].Piece=Board[b].Piece; Board[b].Piece=t; break;
-                case Card.Freeze: Board[a].FreezeUntil=Math.Max(Turn+1,Board[a].FreezeUntil)+3; break;
+                case Card.Freeze: if (Board[a].FreezeUntil<=Turn) Board[a].FreezeStarted=Turn;
+                    Board[a].FreezeUntil=Math.Max(Turn+1,Board[a].FreezeUntil)+3; break;
                 case Card.RotateRight: case Card.RotateLeft: case Card.MirrorH: case Card.MirrorV: case Card.Helicopter:
                     Transform(p.Card,a); break;
                 case Card.Thanos: Board[a]=new Cell { Destroyed=true }; break;
@@ -309,8 +317,8 @@ namespace XOCardBattle
                 case Card.Discard: { int i=rng.Next(Hands[other].Count); Discard.Add(Hands[other][i]); Hands[other].RemoveAt(i); break; }
                 case Card.Cleanse: if(a==-1) Silence[actor]=0; else Board[a].FreezeUntil=0; break;
                 case Card.Silence: Silence[other]+=2; break;
-                case Card.Lockdown: LockUntil=Turn+6; break;
-                case Card.Shield: ShieldUntil[actor]=Turn+3; break;
+                case Card.Lockdown: LockUntil=Turn+6; lockStarted=Turn; break;
+                case Card.Shield: ShieldUntil[actor]=Turn+3; shieldStarted[actor]=Turn; break;
                 case Card.UTurn: Board[LastPlaced].Piece=0; Board[a].Piece=actor+1; LastPlaced=a; break;
                 case Card.Spy: Board[a].Piece=actor+1; break;
                 case Card.Recycle: { int[] ids=Enumerable.Range(0,Discard.Count).Where(i=>Discard[i]!=Card.Recycle).ToArray();
@@ -318,7 +326,7 @@ namespace XOCardBattle
                 case Card.Trade: { List<Card> temp=new List<Card>(Hands[actor]); Hands[actor].Clear();
                     Hands[actor].AddRange(Hands[other]); Hands[other].Clear(); Hands[other].AddRange(temp); break; }
                 case Card.FiftyFifty: for(int i=0;i<2;i++){Card c;if(Take(out c)) Choice.Add(c);} break;
-                case Card.Immortal: Board[a].ImmortalUntil=Turn+4; break;
+                case Card.Immortal: Board[a].ImmortalUntil=Turn+4; Board[a].ImmortalStarted=Turn; break;
                 case Card.Mutual: Board[a].Piece=0; Board[b].Piece=0; break;
             }
         }
@@ -369,10 +377,8 @@ namespace XOCardBattle
                 }
             }
             if(x||o) Result=x&&o?Outcome.Draw:x?Outcome.X:Outcome.O;
-            // No arbitrary full-board draw: cards can reopen positions. Prototype guard
-            // for genuinely exhausted action space, and an explicit configurable policy later.
-            if(Result==Outcome.Playing && !HasPlacement && !Locked &&
-                !Board.Any(c=>c.FreezeUntil>Turn) && TotalCards==0) Result=Outcome.Draw;
+            // Full board alone is not a draw: cards can reopen positions.
+            // Advance applies the provisional configurable turn-limit safety rule.
             return Result;
         }
         int ActivePiece(int i) => IsDestroyed(i)||IsFrozen(i)?0:Board[i].Piece;
