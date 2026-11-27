@@ -36,7 +36,7 @@ namespace XOCardBattle
             "5 turns of pure XO; existing states are suspended, timers continue.",
             "Redirect a personal effect at its caster.",
             "Block personal effects for 2 turns, not board effects.",
-            "Move the mark placed this turn to another legal empty cell.",
+            "Move your just-placed mark; must be the next card.",
             "Convert an enemy mark to yours.","Recover a random used card, except Recycle.",
             "Exchange both hands.","Draw two, keep one.","Protect your mark for 3 turns.",
             "Erase one of your marks and one enemy mark."
@@ -139,7 +139,7 @@ namespace XOCardBattle
                 for(int i=0;i<choice.Length;i++)if(GUI.Button(new Rect(565,150+i*70,610,60),Name(choice[i])+"\n"+Info[(int)choice[i]])){game.Choose(i);break;}
                 return;
             }
-            GUI.Label(new Rect(565,106,610,24),"PLAYER "+Match.Side(game.Player)+" — "+(game.Placed?"mark used":"mark available")+" / "+(game.UsedCard?"card used":"card available"));
+            GUI.Label(new Rect(565,106,610,24),"PLAYER "+Match.Side(game.Player)+" — "+(game.Placed?"mark used":"mark available")+" / "+(game.Locked?"cards locked":"cards played: "+game.CardsPlayedThisTurn));
             GUI.Label(new Rect(565,132,610,26),"Private observation (may be outdated): "+game.Notes[game.Player]);
             if(selected.HasValue)
             {
@@ -168,7 +168,7 @@ namespace XOCardBattle
             }
             GUI.EndScrollView();
             bool enabled=GUI.enabled;GUI.enabled=enabled&&game.CanEnd;
-            if(GUI.Button(new Rect(565,620,610,54),game.HasPlacement?"End turn":"Pass / end turn"))
+            if(GUI.Button(new Rect(565,620,610,54),"End turn"))
             {game.EndTurn();ClearSelection();}
             GUI.enabled=enabled;
         }
