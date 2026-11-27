@@ -13,7 +13,7 @@ Click an empty cell to tick X/O. Click a card to use it; board cards ask for tar
 For region cards, choose the upper-left cell of the region. SWAP/MUTUAL choose own mark first, enemy second.
 CLEANSE: click Cleanse myself or a frozen cell. U-TURN: place a mark first.
 NOPE/REFLECT: react before the effect resolves or click Pass. 50/50: choose a card.
-Click End turn after placing a mark; pass if no valid cells remain.
+Play as many legal cards as you wish, then click End turn, even if you did not place a mark. Pending reactions and choices must resolve first. CLEANSE still ends the turn automatically.
 
 ## Fixed rules
 9x9; five or more active consecutive marks, horizontal/vertical/diagonal; no blocked-end restriction.
@@ -28,7 +28,7 @@ All 28 agreed card types are represented in Match.cs.
 
 ## Provisional rules for the first playable prototype (not final balance)
 - Shared draw pile, 3 copies per card, 5 initial cards per player, then one draw at the beginning of each turn including the first.
-- One active card plus at most one mark per turn. NOPE/REFLECT are reactions and do not consume the active-card allowance.
+- Unlimited legal active cards per turn, before or after placing at most one mark. NOPE/REFLECT remain reactions. End turn is manual (except CLEANSE or game over); playing a card never grants another normal placement. U-TURN must be the first active card after placing and is limited to one attempt.
 - Timed board effects, immunity and lockdown count subsequent global turns; SILENCE counts affected player's personal turns. Newly cast effects also apply during casting turn.
 - PEEK selects a random opponent card. FORESIGHT sees remaining draw pile (up to 3). SHUFFLE targets shared deck.
 - Shield/immortal refresh duration rather than stack; freeze/silence stack.
@@ -36,7 +36,7 @@ All 28 agreed card types are represented in Match.cs.
 - All played cards, including canceled effects, go to discard; empty draw pile recycles discard. RECYCLE excludes itself.
 - Trade is permitted with an empty hand after playing it; an opponent with a shield cannot be targeted.
 - Win is checked immediately, so a finished match cannot be undone with U-TURN.
-- Full board is not an immediate draw; a provisional 250-turn safety cap prevents endless matches. Review after playtesting.
+- Full board is not an immediate draw; a provisional 250-turn safety cap prevents endless matches across turns. Unlimited card chains may prolong a single turn, especially with Recycle and 50/50; monitor this in playtesting. No new per-turn card limit is imposed.
 - Interface is functional debug UI in English; no final art, animation, AI, online mode or build.
 
 ## Status
