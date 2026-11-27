@@ -117,6 +117,36 @@ namespace XOCardBattle
             m=NewMatch();Play(m,Card.FiftyFifty);Require(m.Choosing&&m.Choice.Count==2,"50/50 draws");
             Require(m.Choose(1)&&m.Invariants(),"50/50 conservation");
 
+            // Multiple active cards on the same turn, including repeat Freeze.
+            m=NewMatch();Play(m,Card.Freeze,20);
+            Play(m,Card.Freeze,20);
+            Require(m.FreezeLeft(20)==6 && m.CardsPlayedThisTurn==2 && m.Turn==0,"Unlimited cards / same-turn stacking");
+            Require(m.Place(10)&&!m.Place(11),"Still at most one mark per turn");
+            Play(m,Card.Erase,10);
+            Require(!m.Place(11)&&m.CardsPlayedThisTurn==3,"Erasing own mark does not grant another placement");
+            Require(m.EndTurn()&&m.Player==1&&m.CardsPlayedThisTurn==0,"Manual end resets counters");
+
+            m=NewMatch();Play(m,Card.Shield);
+            Require(m.EndTurn()&&m.Turn==1,"Can end without placing a mark");
+
+            m=NewMatch();Require(m.Place(10),"UTurn repeat setup");
+            Play(m,Card.UTurn,11);Give(m,0,Card.UTurn);
+            Require(!m.CanStart(Card.UTurn),"Only one UTurn per turn");
+
+            m=NewMatch();Require(m.Place(10),"UTurn timing setup");
+            Play(m,Card.Shield);Give(m,0,Card.UTurn);
+            Require(!m.CanStart(Card.UTurn),"UTurn must immediately follow placement");
+
+            m=NewMatch();Give(m,0,Card.Silence);Give(m,1,Card.Nope);
+            Require(m.StartCard(Card.Silence)&&m.Pending&&!m.CanEnd,"Pending reaction blocks end turn");
+            m.PassReaction();Require(m.CanEnd,"Can end after resolution");
+
+            m=NewMatch();Play(m,Card.FiftyFifty);Require(!m.CanEnd,"Pending choice blocks end turn");
+            Require(m.Choose(0)&&m.CanEnd,"Can end after choosing");
+
+            m=NewMatch();Play(m,Card.Lockdown);Give(m,0,Card.Freeze);
+            Require(!m.CanStart(Card.Freeze)&&m.CanEnd,"Lockdown blocks further cards");
+
             Debug.Log("XO Card Battle smoke tests passed.");
         }
     }
